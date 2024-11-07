@@ -1,16 +1,39 @@
 # "org" ensures this Service is used with the correct Serverless Framework Access Key.
 org: diegosinpe
 # "service" is the name of this project. This will also be added to your AWS resource names.
-service: sinpebackend
+service: sinpeapi
 
 provider:
   name: aws
   runtime: nodejs20.x
+  region: us-east-1
 
+        
 functions:
-  hello:
-    handler: handler.hello
+  createContact:
+    handler: src/contacts.createContact
     events:
       - httpApi:
-          path: /
+          path: /contacts
+          method: post
+
+  getContact:
+    handler: src/contacts.getContact
+    events:
+      - httpApi:
+          path: /contacts/{phone}
           method: get
+
+resources:
+  Resources:
+    Contacts:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Contacts
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: phone
+            AttributeType: S
+        KeySchema:
+          - AttributeName: phone
+            KeyType: HASH
