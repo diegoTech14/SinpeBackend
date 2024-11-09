@@ -240,10 +240,43 @@ const sendMoney = async (event) => {
   }
 };
 
+//This method returns all contacts
+const getContacts = async (event) => {
+  const { phone } = event.pathParameters; 
+  try {
+    const result = await dynamodb
+      .scan({
+        TableName: "Contacts",
+        FilterExpression: "phone <> :phone", 
+        ExpressionAttributeValues: {
+          ":phone": phone,  
+        },
+        ProjectionExpression: "#contactName, phone", 
+        ExpressionAttributeNames: {
+          "#contactName": "name", 
+        },
+      })
+      .promise();
+
+    const contacts = result.Items;  
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify(contacts), 
+    };
+  } catch (error) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ message: error.message }),
+    };
+  }
+};
+
 module.exports = {
   getContact,
   createContact,
   getMovement,
   sendMoney,
   getMovements,
+  getContacts,
 };

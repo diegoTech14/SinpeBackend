@@ -45,6 +45,13 @@ functions:
           path: /contacts/movements/{phone}
           method: get
 
+  getContacts:
+    handler: src/contacts.getContacts
+    events:
+      - httpApi:
+          path: /contacts/all/{phone}
+          method: get
+          
 resources:
   Resources:
     Contacts:
