@@ -24,6 +24,27 @@ functions:
           path: /contacts/{phone}
           method: get
 
+  getMovement:
+    handler: src/contacts.getMovement
+    events:
+      - httpApi:
+          path: /contacts/movement
+          method: get
+
+  sendMoney:
+    handler: src/contacts.sendMoney
+    events:
+      - httpApi:
+          path: /contacts/balance
+          method: patch
+
+  getMovements:
+    handler: src/contacts.getMovements
+    events:
+      - httpApi:
+          path: /contacts/movements/{phone}
+          method: get
+
 resources:
   Resources:
     Contacts:

@@ -4,25 +4,71 @@ const { dynamodb } = require("./db.js");
 const errorMessage = require("./error.js");
 
 //This is a private method to use in other lambdas
-const generateMovement = async (object) => {
+const generateMovement = async (phone, newMovement) => {
   try {
-    const id = v4();
 
-    const newMovement = {
-      id: id,
-      ...object,
-    };
-
-    await dynamodb
-      .put({
-        TableName: "Contacts",
-        Item: newMovement,
-      })
-      .promise();
+    await dynamodb.update({
+      TableName: "Contacts",
+      Key: { phone },
+      UpdateExpression: "SET movements = list_append(if_not_exists(movements, :emptyList), :newMovement)",
+      ExpressionAttributeValues: {
+        ":newMovement": [newMovement],
+        ":emptyList": []
+      },
+      ReturnValues: "ALL_NEW"
+    }).promise();
 
     return {
       statusCode: 200,
-      body: JSON.stringify(newMovement),
+      body: JSON.stringify({ message: "Movimiento añadido exitosamente." })
+    };
+
+  } catch (error) {
+    console.error("Error al añadir movimiento:", error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ message: "Error al añadir el movimiento.", error: error.message })
+    };
+  }
+};
+
+//This is a private method to get contact information
+const getInfoContact = async(phone) => {
+  try {
+    const result = await dynamodb
+      .get({
+        TableName: "Contacts",
+        Key: {
+          phone,
+        },
+      })
+      .promise();
+
+    return result.Item;
+
+  } catch (error) {
+    return errorMessage(error);
+  }
+}
+
+const getMovements = async (event) => {
+  
+  const { phone } = event.pathParameters;
+  try {
+    const result = await dynamodb
+      .get({
+        TableName: "Contacts",
+        Key: {
+          phone
+        },
+      })
+      .promise();
+
+    const movements = result.Item ? result.Item.movements : null;
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify(movements),
     };
   } catch (error) {
     return {
@@ -32,40 +78,12 @@ const generateMovement = async (object) => {
   }
 };
 
-//This is a private method that returns the current balance of the client
-const getBalance = async(phone) => {
-  try {
-    const result = await dynamodb
-      .get({
-        TableName: "Contacts",
-        Key: {
-          phone: phone,
-        },
-      })
-      .promise();
-
-    const balance = result.Item? result.Item.balance : null;
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify(balance),
-    };
-  } catch (error) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ message: error.message }),
-    };
-  }
-}
-
 //This method creates a new client
 const createContact = async (event) => {
   try {
-    const id = v4();
     const { name, surname, phone, balance, movements } = JSON.parse(event.body);
 
     const newClient = {
-      id,
       name,
       surname,
       phone,
@@ -85,37 +103,23 @@ const createContact = async (event) => {
       body: JSON.stringify(newClient),
     };
   } catch (error) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ message: error.message }),
-    };
+    return errorMessage(error);
   }
 };
 
 //This method returns an specific client
 const getContact = async (event) => {
   try {
-    const { id } = event.pathParameters;
-    const result = await dynamodb
-      .get({
-        TableName: "Contacts",
-        Key: {
-          id: id,
-        },
-      })
-      .promise();
 
-    const client = result.Item;
+    const { phone } = event.pathParameters;
+    const contact = await getInfoContact(phone);
 
     return {
       statusCode: 200,
-      body: JSON.stringify(client),
+      body: JSON.stringify(contact),
     };
   } catch (error) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ message: error.message }),
-    };
+    return errorMessage(error);
   }
 };
 
@@ -128,7 +132,7 @@ const getMovement = async (event) => {
       .get({
         TableName: "Contacts",
         Key: {
-          phone: phone,
+          phone,
         },
       })
       .promise();
@@ -164,8 +168,81 @@ const getMovement = async (event) => {
   }
 };
 
+//This method sends money to another contact
+const sendMoney = async (event) => {
+  
+  const { 
+    phoneSend, 
+    phoneReceive, 
+    ammount, 
+    detail
+  } = JSON.parse(event.body);
+  
+  const currentDate = new Date().toISOString().split('T')[0];
+  const currentTime = new Date().toISOString().split('T')[1].split('.')[0];
+
+  try {
+    await dynamodb
+      .transactWrite({
+        TransactItems: [
+          {
+            Update: {
+              TableName: "Contacts",
+              Key: { phone: phoneSend },
+              UpdateExpression: "set balance = balance - :ammount",
+              ConditionExpression: "balance >= :ammount",
+              ExpressionAttributeValues: {
+                ":ammount": ammount,
+              },
+            },
+          },
+          {
+            Update: {
+              TableName: "Contacts",
+              Key: { phone: phoneReceive },
+              UpdateExpression: "set balance = balance + :ammount",
+              ExpressionAttributeValues: {
+                ":ammount": ammount,
+              },
+            },
+          },
+        ],
+      })
+      .promise();
+      const contactName = await getInfoContact(phoneReceive);
+      
+      await generateMovement(phoneSend, 
+        {
+          name: contactName.name,
+          phone: phoneReceive,
+          date: currentDate,
+          hour: currentTime,
+          description: detail,
+          ammount: ammount
+      }
+    );
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        message: "Transferencia completada exitosamente.",
+      }),
+    };
+  } catch (error) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        message: "Error al realizar la transferencia.",
+        error: error.message,
+      }),
+    };
+  }
+};
+
 module.exports = {
   getContact,
   createContact,
   getMovement,
+  sendMoney,
+  getMovements,
 };
