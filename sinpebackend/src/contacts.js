@@ -213,6 +213,7 @@ const sendMoney = async (event) => {
       
       await generateMovement(phoneSend, 
         {
+          id:v4(),
           name: contactName.name,
           phone: phoneReceive,
           date: currentDate,
