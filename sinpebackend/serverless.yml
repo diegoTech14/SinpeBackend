@@ -1,6 +1,4 @@
-# "org" ensures this Service is used with the correct Serverless Framework Access Key.
 org: diegosinpe
-# "service" is the name of this project. This will also be added to your AWS resource names.
 service: sinpeapi
 
 provider:
@@ -8,7 +6,6 @@ provider:
   runtime: nodejs20.x
   region: us-east-1
 
-        
 functions:
   createContact:
     handler: src/contacts.createContact
@@ -28,7 +25,7 @@ functions:
     handler: src/contacts.getMovement
     events:
       - httpApi:
-          path: /contacts/movement
+          path: /contacts/movement/{phone}/{id}
           method: get
 
   sendMoney:
@@ -51,7 +48,14 @@ functions:
       - httpApi:
           path: /contacts/all/{phone}
           method: get
-          
+
+  getFirstContact:
+    handler: src/contacts.getFirstContact
+    events:
+      - httpApi:
+          path: /contacts/first
+          method: get
+
 resources:
   Resources:
     Contacts:

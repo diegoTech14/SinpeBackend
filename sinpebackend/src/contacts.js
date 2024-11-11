@@ -1,65 +1,42 @@
-const aws = require("aws-sdk");
 const { v4 } = require("uuid");
 const { dynamodb } = require("./db.js");
 const errorMessage = require("./error.js");
+const { getInfoContact, generateMovement } = require("./utils.js")
 
-//This is a private method to use in other lambdas
-const generateMovement = async (phone, newMovement) => {
+const getFirstContact = async (event) => {
   try {
 
-    await dynamodb.update({
+    const result = await dynamodb
+    .scan({
       TableName: "Contacts",
-      Key: { phone },
-      UpdateExpression: "SET movements = list_append(if_not_exists(movements, :emptyList), :newMovement)",
-      ExpressionAttributeValues: {
-        ":newMovement": [newMovement],
-        ":emptyList": []
+      Limit: 1,
+      ProjectionExpression: "#contactName, phone, balance",
+      ExpressionAttributeNames: {
+        "#contactName": "name",
       },
-      ReturnValues: "ALL_NEW"
-    }).promise();
+    })
+    .promise();
+
+    const firstContact = result.Items && result.Items[0];
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ message: "Movimiento añadido exitosamente." })
+      body: JSON.stringify(firstContact)
     };
-
-  } catch (error) {
-    console.error("Error al añadir movimiento:", error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ message: "Error al añadir el movimiento.", error: error.message })
-    };
-  }
-};
-
-//This is a private method to get contact information
-const getInfoContact = async(phone) => {
-  try {
-    const result = await dynamodb
-      .get({
-        TableName: "Contacts",
-        Key: {
-          phone,
-        },
-      })
-      .promise();
-
-    return result.Item;
 
   } catch (error) {
     return errorMessage(error);
   }
-}
+};
 
 const getMovements = async (event) => {
-  
   const { phone } = event.pathParameters;
   try {
     const result = await dynamodb
       .get({
         TableName: "Contacts",
         Key: {
-          phone
+          phone,
         },
       })
       .promise();
@@ -78,7 +55,6 @@ const getMovements = async (event) => {
   }
 };
 
-//This method creates a new client
 const createContact = async (event) => {
   try {
     const { name, surname, phone, balance, movements } = JSON.parse(event.body);
@@ -107,10 +83,8 @@ const createContact = async (event) => {
   }
 };
 
-//This method returns an specific client
 const getContact = async (event) => {
   try {
-
     const { phone } = event.pathParameters;
     const contact = await getInfoContact(phone);
 
@@ -123,10 +97,9 @@ const getContact = async (event) => {
   }
 };
 
-//This method returns a detail of an specific movement
 const getMovement = async (event) => {
   try {
-    const { phone, movementId } = JSON.parse(event.body);
+    const { phone, id } = event.pathParameters;
 
     const result = await dynamodb
       .get({
@@ -146,7 +119,7 @@ const getMovement = async (event) => {
       };
     }
 
-    const movement = client.movements.find((mov) => mov.id === movementId);
+    const movement = client.movements.find((mov) => mov.id === id);
 
     if (!movement) {
       return {
@@ -168,18 +141,11 @@ const getMovement = async (event) => {
   }
 };
 
-//This method sends money to another contact
 const sendMoney = async (event) => {
-  
-  const { 
-    phoneSend, 
-    phoneReceive, 
-    ammount, 
-    detail
-  } = JSON.parse(event.body);
-  
-  const currentDate = new Date().toISOString().split('T')[0];
-  const currentTime = new Date().toISOString().split('T')[1].split('.')[0];
+  const { phoneSend, phoneReceive, ammount, detail } = JSON.parse(event.body);
+
+  const currentDate = new Date().toISOString().split("T")[0];
+  const currentTime = new Date().toISOString().split("T")[1].split(".")[0];
 
   try {
     await dynamodb
@@ -209,19 +175,17 @@ const sendMoney = async (event) => {
         ],
       })
       .promise();
-      const contactName = await getInfoContact(phoneReceive);
-      
-      await generateMovement(phoneSend, 
-        {
-          id:v4(),
-          name: contactName.name,
-          phone: phoneReceive,
-          date: currentDate,
-          hour: currentTime,
-          description: detail,
-          ammount: ammount
-      }
-    );
+    const contactName = await getInfoContact(phoneReceive);
+
+    await generateMovement(phoneSend, {
+      id: v4(),
+      name: contactName.name,
+      phone: phoneReceive,
+      date: currentDate,
+      hour: currentTime,
+      description: detail,
+      ammount: ammount,
+    });
 
     return {
       statusCode: 200,
@@ -240,29 +204,28 @@ const sendMoney = async (event) => {
   }
 };
 
-//This method returns all contacts
 const getContacts = async (event) => {
-  const { phone } = event.pathParameters; 
+  const { phone } = event.pathParameters;
   try {
     const result = await dynamodb
       .scan({
         TableName: "Contacts",
-        FilterExpression: "phone <> :phone", 
+        FilterExpression: "phone <> :phone",
         ExpressionAttributeValues: {
-          ":phone": phone,  
+          ":phone": phone,
         },
-        ProjectionExpression: "#contactName, phone", 
+        ProjectionExpression: "#contactName, phone",
         ExpressionAttributeNames: {
-          "#contactName": "name", 
+          "#contactName": "name",
         },
       })
       .promise();
 
-    const contacts = result.Items;  
+    const contacts = result.Items;
 
     return {
       statusCode: 200,
-      body: JSON.stringify(contacts), 
+      body: JSON.stringify(contacts),
     };
   } catch (error) {
     return {
@@ -279,4 +242,5 @@ module.exports = {
   sendMoney,
   getMovements,
   getContacts,
+  getFirstContact,
 };
