@@ -51,7 +51,7 @@ This project uses Serverless Framework
  npm install -g serverless
 ```
 
-Also we need to install AWS-CLI [here](https://aws.amazon.com/es/cli/) and follow the installation steps, for this step you should to configure an user in AWS
+Also we need to install AWS-CLI [here](https://aws.amazon.com/es/cli/) and follow the installation steps, for this step you should to configure an user on AWS
 
 <!-- Installation -->
 ### 🛠️ Installation
