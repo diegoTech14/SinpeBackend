@@ -4,7 +4,7 @@
   <h1>Sinpe Móvil Backend 📱</h1>
   
   <p>
-    A backend repository for the Wink Sinpe Móvil App
+    This repository contains the backend of a wink mobile sinpe simulator which is worked with AWS using HTTP API and API Gateway, in addition to this it uses a dynamodb database integrated within the services
   </p>
      
 </div>
